@@ -1,4 +1,19 @@
-const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();const initData=tg?.initData||'';let user,caseList;
+window.addEventListener('error',e=>{
+document.querySelector('#screen').innerHTML=
+'<div class="card"><h2>⚠️ JavaScript Error</h2><p>'+
+(e.message||'Unknown error')+'</p><p>'+
+(e.filename||'')+'</p><p>line: '+(e.lineno||'')+'</p></div>';
+});
+
+const tg=window.Telegram?.WebApp;
+tg?.ready();
+tg?.expand();
+
+const initData=tg?.initData||'';
+let user,caseList;
+
+document.querySelector('#screen').innerHTML=
+'<div class="card"><h2>⏳ Загрузка VLDST CASE X...</h2></div>';
 async function api(p,o={}){let r=await fetch(p,{...o,headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData,...(o.headers||{})}});if(!r.ok)throw Error((await r.json().catch(()=>({}))).detail||'Ошибка');return r.json()}
 function v(theme,r='COMMON'){let e={bronze:'⚙️',silver:'🌙',gold:'🪙',diamond:'💎',royal:'👑',galaxy:'🌌',cyber:'⚡',inferno:'🔥',shadow:'🌑',dragon:'🐉'}[theme]||'⚙️';return `<div class="visual ${theme} ${r.toLowerCase()}">${e}</div>`}
 function top(){document.querySelector('#balance').textContent=`🪙 ${user?.coins||0} · 💎 ${user?.gems||0} · LVL ${user?.level||1}`}

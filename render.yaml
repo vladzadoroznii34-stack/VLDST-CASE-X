@@ -15,3 +15,20 @@ services:
         value: https://vldst-case-xx.onrender.com
       - key: TELEGRAM_CHANNEL_URL
         value: https://t.me/vldst_news
+
+  - type: worker
+    name: vldst-case-xx-bot
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m bot.main
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_APP_URL
+        value: https://vldst-case-xx.onrender.com
+      - key: TELEGRAM_CHANNEL_URL
+        value: https://t.me/vldst_news

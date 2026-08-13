@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: vldst-case-xx
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_APP_URL
+        value: https://vldst-case-xx.onrender.com
+      - key: TELEGRAM_CHANNEL_URL
+        value: https://t.me/vldst_news

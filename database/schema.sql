@@ -1,0 +1,2 @@
+-- Canonical schema is created by backend/app/models.py via SQLAlchemy on startup.
+-- Production schema changes should be managed with Alembic migrations.

@@ -1,0 +1,1 @@
+-- Seed is performed by: python scripts/seed_database.py

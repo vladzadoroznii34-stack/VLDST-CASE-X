@@ -1,7 +1,7 @@
 import asyncio
 from aiogram import Bot,Dispatcher,F
 from aiogram.filters import CommandStart,Command
-from aiogram.types import Message,PreCheckoutQuery
+from aiogram.types import Message,PreCheckoutQuery,InlineKeyboardMarkup,InlineKeyboardButton
 from backend.app.config import settings
 from backend.app.db import SessionLocal
 from backend.app.models import Payment,User
@@ -11,7 +11,7 @@ from datetime import datetime,timezone
 dp=Dispatcher()
 @dp.message(CommandStart())
 async def start(m:Message):
- await m.answer('🎁 <b>Добро пожаловать в VLDST CASE X</b>\n\nОткрывай кейсы, собирай коллекцию, выполняй Daily и Missions.',parse_mode='HTML',reply_markup={'inline_keyboard':[[{'text':'🚀 ИГРАТЬ','web_app':{'url':settings.web_app_url}}]]})
+ await m.answer('🎁 <b>Добро пожаловать в VLDST CASE X</b>\n\nОткрывай кейсы, собирай коллекцию, выполняй Daily и Missions.',parse_mode='HTML',reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='🚀 ИГРАТЬ',web_app={'url':settings.web_app_url})]]))
 @dp.message(Command('paysupport'))
 async def paysupport(m:Message):await m.answer('По вопросам оплаты укажите Telegram ID и детали покупки.')
 @dp.pre_checkout_query()

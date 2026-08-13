@@ -1,23 +1,8 @@
-window.addEventListener('error',e=>{
-document.querySelector('#screen').innerHTML=
-'<div class="card"><h2>⚠️ JavaScript Error</h2><p>'+
-(e.message||'Unknown error')+'</p><p>'+
-(e.filename||'')+'</p><p>line: '+(e.lineno||'')+'</p></div>';
-});
-
-const tg=window.Telegram?.WebApp;
-tg?.ready();
-tg?.expand();
-
-const initData=tg?.initData||'';console.log('VLDST initData length:',initData.length);
-let user,caseList;
-
-document.querySelector('#screen').innerHTML=
-'<div class="card"><h2>⏳ Загрузка VLDST CASE X...</h2></div>';
+const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();const initData=tg?.initData||'';let user,caseList;
 async function api(p,o={}){let r=await fetch(p,{...o,headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData,...(o.headers||{})}});if(!r.ok)throw Error((await r.json().catch(()=>({}))).detail||'Ошибка');return r.json()}
 function v(theme,r='COMMON'){let e={bronze:'⚙️',silver:'🌙',gold:'🪙',diamond:'💎',royal:'👑',galaxy:'🌌',cyber:'⚡',inferno:'🔥',shadow:'🌑',dragon:'🐉'}[theme]||'⚙️';return `<div class="visual ${theme} ${r.toLowerCase()}">${e}</div>`}
 function top(){document.querySelector('#balance').textContent=`🪙 ${user?.coins||0} · 💎 ${user?.gems||0} · LVL ${user?.level||1}`}
-async function init(){if(!initData){document.querySelector('#screen').innerHTML='<div class="card"><h2>⚠️ Telegram initData отсутствует</h2><p>Mini App открыт без авторизации Telegram.</p></div>';return}try{user=await api('/api/profile');caseList=await api('/api/cases');top();render('cases')}catch(e){document.querySelector('#screen').innerHTML=`<div class="card">${e.message}</div>`}}
+async function init(){if(!initData){document.querySelector('#screen').innerHTML='<div class="card"><h2>Откройте Mini App из Telegram</h2></div>';return}try{user=await api('/api/profile');caseList=await api('/api/cases');top();render('cases')}catch(e){document.querySelector('#screen').innerHTML=`<div class="card">${e.message}</div>`}}
 function render(s){({cases,inventory,collection,missions,profile}[s]||cases)()}
 function cases(){document.querySelector('#screen').innerHTML='<h2>🎁 Кейсы</h2><div class="grid">'+caseList.map(c=>`<div class="card">${v(c.theme)}<h3>${c.name}</h3><p>🪙 ${c.price.toLocaleString()} · LVL ${c.unlock_level}</p><button class="btn" ${c.unlocked?'':'disabled'} onclick="openCase('${c.case_code}')">${c.unlocked?'ОТКРЫТЬ':'ЗАКРЫТО'}</button></div>`).join('')+'</div>'}
 async function openCase(code){try{let d=await api('/api/cases/open',{method:'POST',body:JSON.stringify({case_code:code,request_id:crypto.randomUUID()})});user.coins=d.coins;user.xp=d.xp;user.level=d.level;top();show(d.item)}catch(e){alert(e.message)}}

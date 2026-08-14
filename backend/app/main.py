@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import engine, get_db
+from .db import engine, get_db, SessionLocal
 from .game_data import CASES, RARITY_CHANCES
 from .security import validate_telegram_init_data
 
@@ -1174,7 +1174,7 @@ async def bot_loop():
         if arg.startswith("ref_"):
             try:
                 ref_id = int(arg[4:])
-                with next(get_db()) as db:
+                with SessionLocal() as db:
                     u = ensure_user(
                         db,
                         {
@@ -1240,7 +1240,7 @@ async def bot_loop():
             user_id = int(parts[2])
         except ValueError:
             return
-        with next(get_db()) as db:
+        with SessionLocal() as db:
             payment_id = sp.telegram_payment_charge_id
             inserted = db.execute(
                 text(

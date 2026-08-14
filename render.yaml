@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: vldst-case-x
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: WEB_APP_URL
+        value: https://vldst-case-x-1.onrender.com
+      - key: TELEGRAM_CHANNEL_URL
+        value: https://t.me/vldst_news
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_KEY
+        sync: false
+      - key: ADMIN_TELEGRAM_IDS
+        value: 6038067496
+      - key: DATABASE_URL
+        sync: false

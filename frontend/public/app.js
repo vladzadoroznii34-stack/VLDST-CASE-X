@@ -1,0 +1,171 @@
+const tg=window.Telegram?.WebApp; tg?.ready(); tg?.expand();
+const init=tg?.initData||""; let profile=null; let isAdmin=false; let currentPage="home";
+async function api(path,options={}){const headers={...(options.headers||{}),"X-Telegram-Init-Data":init};const res=await fetch(path,{...options,headers});const raw=await res.text();let data;try{data=JSON.parse(raw)}catch{throw new Error("Сервер вернул некорректный ответ")};if(!res.ok)throw new Error(data.detail||"Ошибка запроса");return data}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+const em={COMMON:"⚪",UNCOMMON:"🟢",RARE:"🔵",EPIC:"🟣",LEGENDARY:"🟠",MYTHIC:"🔴"};const rarityClass={COMMON:"common",UNCOMMON:"uncommon",RARE:"rare",EPIC:"epic",LEGENDARY:"legendary",MYTHIC:"mythic"};
+function toast(msg){const e=document.createElement("div");e.className="toast";e.textContent=msg;document.body.appendChild(e);setTimeout(()=>e.remove(),2600)}
+function busy(on){document.body.classList.toggle("busy",on)}
+function setActive(page){document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page))}
+function card(i){const p=!!i.pinned;const img=i.image_url?`<img class="item-image" src="${esc(i.image_url)}" alt="${esc(i.name)}" loading="lazy">`:i.item_code?`<img class="item-image" src="/static/assets/items/${esc(i.item_code)}.png" alt="${esc(i.name)}" loading="lazy">`:``;return `<div class="item ${rarityClass[i.rarity]||""}"><div class="rarity">${em[i.rarity]||"✨"} ${esc(i.rarity)}</div>${img}<b>${esc(i.name)}</b><small>${esc(i.item_code)}</small>${i.quantity!==undefined?`<span class="qty">×${i.quantity}</span>`:""}${i.sell_price!==undefined?`<small class="value">🪙 ${Number(i.sell_price).toLocaleString()}</small>`:""}${i.quantity!==undefined?`<button class="pin ${p?"active":""}" onclick="pinItem('${i.item_code}',${!p})">${p?"📌 Закреплён":"📍 Закрепить"}</button>`:""}</div>`}
+async function render(page="home"){
+ currentPage=page;setActive(["home","cases","games","inventory","more"].includes(page)?page:"more");const c=document.querySelector("#content");c.innerHTML='<div class="loading">Загрузка…</div>';
+ try{
+  if(page==="home"){c.innerHTML=`<div class="hero hero-main"><div class="hero-copy"><span class="badge">V9 • FINAL RELEASE</span><h1>Открывай.<br><span>Собирай. Побеждай.</span></h1><p>VLDST CASE X — яркий Telegram WebApp с кейсами, коллекцией, играми, сезоном и наградами.</p><div class="hero-actions"><button class="primary-action" onclick="render('cases')">🎁 ОТКРЫТЬ КЕЙС</button><button class="secondary" onclick="render('inventory')">🎒 ИНВЕНТАРЬ</button></div></div><div class="hero-art"><div class="art-glow"></div><img src="/static/assets/cases/VLDST-RO.png" alt="VLDST featured case"></div></div><div class="section-head"><h2>⚡ Быстрый доступ</h2></div><div class="quick-menu"><button onclick="render('inventory')">🎒 Инвентарь</button><button onclick="render('collection')">🧩 Коллекция</button><button onclick="render('daily')">🔥 Daily</button><button onclick="render('missions')">🎯 Миссии</button><button onclick="render('season')">🌌 Сезон</button><button onclick="render('shop')">⭐ Stars</button><button onclick="render('ads')">📢 Реклама</button><button onclick="render('achievements')">🏆 Достижения</button><button onclick="render('referrals')">👥 Рефералы</button><button onclick="render('leaderboard')">🏆 Лидерборд</button>${isAdmin?`<button onclick="render('admin')">🛡️ Админка</button>`:""}</div><div class="card" style="margin-top:14px"><div class="section-head"><b>Твой прогресс</b><span>LVL ${profile?.level||1}</span></div><div class="progress"><i style="width:${Math.min(100,(Number(profile?.xp||0)%100))}%"></i></div><p>${profile?.xp_to_next||100} XP до следующего уровня</p></div>`}
+  else if(page==="cases"){const j=await api("/api/cases");c.innerHTML=`<div class="section-head"><h2>🎁 Кейсы</h2><span>🪙 ${Number(profile?.coins||0).toLocaleString()}</span></div><div class="grid">${j.cases.map(x=>`<div class="card case-card ${x.theme}"><img class="case-image" src="${esc(x.image_url||(`/static/assets/cases/${x.case_code}.png`))}" alt="${esc(x.name)}" loading="lazy"><h3>${esc(x.name)}</h3><p>LVL ${x.unlock_level} · ${x.items.length} предметов</p><div class="price">🪙 ${Number(x.price).toLocaleString()}</div><div class="case-actions"><button onclick="openCase('${x.case_code}',1)">×1</button><button class="secondary" onclick="openCase('${x.case_code}',3)">×3</button></div></div>`).join("")}</div>`}
+  else if(page==="inventory"){const j=await api("/api/inventory");c.innerHTML=`<div class="section-head"><h2>🎒 Инвентарь</h2><span>${j.items.length} видов</span></div>${j.items.length?`<div class="inventory-grid">${j.items.map(x=>`<div class="inventory-slot">${card(x)}<button class="sell" ${x.pinned?"disabled":""} onclick="sell('${x.item_code}',1)">Продать · 🪙 ${Number(x.sell_price).toLocaleString()}</button></div>`).join("")}</div>`:`<div class="empty card">Инвентарь пуст. Открой первый кейс 🎁</div>`}`}
+  else if(page==="collection"){const j=await api("/api/collection"),owned=j.items.filter(x=>x.owned).length;c.innerHTML=`<div class="section-head"><h2>🧩 Коллекция</h2><span>${owned}/${j.items.length}</span></div><div class="collection-grid">${j.items.map(x=>x.owned?card(x):`<div class="item locked">🔒<b>${esc(x.name)}</b><small>${esc(x.rarity)}</small></div>`).join("")}</div>`}
+  else if(page==="daily"){const j=await api("/api/daily");c.innerHTML=`<div class="hero"><span class="badge">🔥 DAILY</span><h2>Ежедневная награда</h2><p>Серия: <b>${j.streak}</b> дней</p><button class="primary-action" ${j.claimed?"disabled":""} onclick="daily()">${j.claimed?"✓ УЖЕ ПОЛУЧЕНО":"ЗАБРАТЬ НАГРАДУ"}</button></div>`}
+  else if(page==="missions"){const j=await api("/api/missions");c.innerHTML=`<h2>🎯 Миссии</h2>${j.daily.map(x=>`<div class="mission"><div><b>${esc(x.title)}</b><p>${x.progress}/${x.target} · 🪙 ${x.reward}</p></div><button ${x.ready?"":"disabled"} onclick="claimMission('${x.id}')">${x.claimed?"✓":"ЗАБРАТЬ"}</button></div>`).join("")}`}
+  else if(page==="achievements"){const j=await api("/api/achievements");c.innerHTML=`<h2>🏆 Достижения</h2>${j.achievements.map(x=>`<div class="mission"><div><b>${esc(x.title)}</b><p>${x.progress}/${x.target} · 🪙 ${x.reward}</p></div><button ${x.ready?"":"disabled"} onclick="claimAchievement('${x.id}')">${x.claimed?"✓":"ЗАБРАТЬ"}</button></div>`).join("")}`}
+  else if(page==="season"){const j=await api("/api/season");c.innerHTML=`<div class="card"><span class="badge">SEASON 1</span><h2>${esc(j.name)}</h2><p>${j.current_level}/50 уровней · ${j.xp} XP</p><div class="progress"><i style="width:${Math.min(100,j.current_level/50*100)}%"></i></div></div>${j.rewards.slice(0,Math.min(50,j.current_level+2)).map(x=>`<div class="season-row"><b>LVL ${x.level}</b><span>🪙 ${x.free}</span><button ${x.ready&&!x.free_claimed?"":"disabled"} onclick="claimSeason(${x.level},false)">${x.free_claimed?"✓":"FREE"}</button>${j.premium?`<span>⭐ ${x.premium}</span><button ${x.ready&&!x.premium_claimed?"":"disabled"} onclick="claimSeason(${x.level},true)">${x.premium_claimed?"✓":"PREMIUM"}</button>`:""}</div>`).join("")}`}
+  else if(page==="shop"){const j=await api("/api/shop");c.innerHTML=`<h2>⭐ Telegram Stars</h2><p class="hint">Покупки проходят через официальный Telegram invoice.</p>${j.products.map(x=>`<div class="shop-row"><div><b>${esc(x.title)}</b><p>${esc(x.description)}</p><strong>⭐ ${x.stars} Stars</strong></div><button onclick="buy('${x.id}')">КУПИТЬ</button></div>`).join("")}`}
+  else if(page==="games"){c.innerHTML=`<div class="section-head"><h2>🎮 VLDST LAB</h2><span class="badge">SKILL MODE</span></div><div class="card game-card reactor-card"><div class="game-icon reactor-orb">◉</div><span class="badge">NEON REACTOR</span><h3>NEON REACTOR</h3><p>Тренируй реакцию: лови движущиеся ядра, набирай комбо и выбивай больший множитель. Это уже не рулетка — здесь решает твой результат.</p><div class="reactor-stats"><div><b id="reactorScore">0</b><small>Очки</small></div><div><b id="reactorCombo">0×</b><small>Комбо</small></div><div><b id="reactorTime">15</b><small>Секунд</small></div></div><button class="primary-action" onclick="startReactor()">⚡ НАЧАТЬ ИГРУ</button></div>`}
+  else if(page==="ads"){const j=await api("/api/ads");c.innerHTML=`<h2>📢 Реклама</h2><p class="hint">Выполняй задания и получай монеты.</p>${j.ads.length?j.ads.map(x=>`<div class="shop-row"><div><b>${esc(x.title)}</b><p>${esc(x.description)}</p><strong>🪙 ${Number(x.reward).toLocaleString()}</strong></div><button ${Number(x.claimed_today)>=Number(x.daily_limit)?"disabled":""} onclick="claimAd(${x.id},'${esc(x.url)}')">${Number(x.claimed_today)>=Number(x.daily_limit)?"✓":"ПОЛУЧИТЬ"}</button></div>`).join(""):`<div class="empty card">Пока нет активных рекламных заданий.</div>`}`}
+  else if(page==="referrals"){const j=await api("/api/referrals");c.innerHTML=`<div class="hero"><h2>👥 Рефералы</h2><p>Приглашай друзей и развивай свой аккаунт.</p><div class="stats"><div><b>${j.invited}</b><small>Приглашено</small></div><div><b>${j.active}</b><small>Активных</small></div><div><b>🪙 ${Number(j.earned).toLocaleString()}</b><small>Заработано</small></div></div><button class="primary-action" onclick="copyRef('${esc(j.link)}')">📋 СКОПИРОВАТЬ ССЫЛКУ</button></div>`}
+  else if(page==="leaderboard"){const j=await api("/api/leaderboard");c.innerHTML=`<div class="section-head"><h2>🏆 Лидерборд</h2><span>TOP 100</span></div>${j.users.map((x,n)=>`<div class="leader-row"><b>#${n+1}</b><div><strong>${esc(x.first_name||x.username||"Игрок")}</strong><small>LVL ${x.level} · 🪙 ${Number(x.coins).toLocaleString()}</small></div><span>⭐ ${x.xp}</span></div>`).join("")||`<div class="empty card">Пока нет игроков.</div>`}`}
+  else if(page==="more"){c.innerHTML=`<div class="section-head"><h2>☰ Всё VLDST</h2><span class="badge">V9 FINAL RELEASE</span></div><div class="quick-menu more-menu"><button onclick="render('profile')">👤 Профиль</button><button onclick="render('collection')">🧩 Коллекция</button><button onclick="render('daily')">🔥 Daily</button><button onclick="render('missions')">🎯 Миссии</button><button onclick="render('achievements')">🏆 Достижения</button><button onclick="render('season')">🌌 Сезон</button><button onclick="render('shop')">⭐ Stars / Пакеты</button><button onclick="render('ads')">📢 Реклама</button><button onclick="render('referrals')">👥 Рефералы</button><button onclick="render('leaderboard')">🏆 Лидерборд</button><button onclick="render('history')">📜 История</button><button onclick="render('promo')">🎟 Промокод</button>${isAdmin?`<button onclick="render('admin')">🛡️ Админка</button>`:""}</div>`}
+  else if(page==="history"){const j=await api('/api/history');c.innerHTML=`<h2>📜 История</h2><div class="card"><h3>Операции</h3>${j.transactions.map(x=>`<div class="admin-row"><div><b>${esc(x.kind)}</b><small>${esc(x.meta||'')} · ${esc(x.created_at)}</small></div><strong>${Number(x.amount)>=0?'+':''}${Number(x.amount).toLocaleString()} 🪙</strong></div>`).join('')||'<p class="muted">Пока пусто.</p>'}</div><div class="card"><h3>Открытия</h3>${j.openings.map(x=>`<div class="admin-row"><div><b>${esc(x.case_code)}</b><small>${esc(x.created_at)}</small></div></div>`).join('')||'<p class="muted">Пока пусто.</p>'}</div>`}
+  else if(page==="promo"){c.innerHTML=`<div class="hero"><span class="badge">BONUS</span><h2>🎟 Промокод</h2><p>Введи код и забери награду.</p><div class="promo-box"><input id="promoInput" maxlength="40" placeholder="VLDST-XXXX"><button class="primary-action" onclick="redeemPromo()">АКТИВИРОВАТЬ</button></div></div>`}
+  else if(page==="profile"){const x=profile||await api("/api/profile");c.innerHTML=`<div class="hero"><span class="badge">PROFILE</span><h2>👤 ${esc(x.first_name||x.username||"Игрок")}</h2><div class="stats"><div><b>LVL ${x.level}</b><small>Уровень</small></div><div><b>🪙 ${Number(x.coins).toLocaleString()}</b><small>Монеты</small></div><div><b>⭐ ${x.xp}</b><small>XP</small></div></div><p>До следующего уровня: <b>${x.xp_to_next} XP</b></p></div><div class="quick-menu"><button onclick="render('collection')">🧩 Коллекция</button><button onclick="render('missions')">🎯 Миссии</button><button onclick="render('achievements')">🏆 Достижения</button><button onclick="render('season')">🌌 Сезон</button><button onclick="render('shop')">⭐ Stars</button><button onclick="render('referrals')">👥 Рефералы</button><button onclick="render('leaderboard')">🏆 Лидерборд</button>${isAdmin?`<button onclick="render('admin')">🛡️ Админка</button>`:""}</div>`}
+  else if(page==="admin"){await renderAdmin(c)}
+ }catch(e){c.innerHTML=`<div class="error card"><b>Ошибка</b><p>${esc(e.message)}</p><button onclick="render('${page}')">ПОВТОРИТЬ</button></div>`}
+}
+async function renderAdmin(c){if(!isAdmin){c.innerHTML='<div class="error card"><h2>403</h2><p>Админ-панель доступна только владельцу.</p></div>';return}const j=await api('/api/admin/dashboard');c.innerHTML=`<div class="section-head"><h2>🛡️ Админ-панель</h2><span class="badge">OWNER ONLY</span></div><div class="admin-kpi"><div class="card"><b>${j.stats.users}</b><small>Пользователи</small></div><div class="card"><b>🪙 ${Number(j.stats.coins).toLocaleString()}</b><small>Монеты</small></div><div class="card"><b>${j.stats.openings}</b><small>Открытия</small></div><div class="card"><b>${j.stats.payments}</b><small>Stars-платежи</small></div></div><div class="admin-tabs"><button onclick="adminUsers()">👥 Пользователи</button><button onclick="adminAds()">📢 Реклама</button><button onclick="adminPayments()">⭐ Stars</button><button onclick="adminPromos()">🎟 Промокоды</button><button onclick="adminAudit()">📝 Аудит</button><button onclick="adminCatalog()">🎁 Каталог</button><button onclick="adminGrant()">🎁 Выдать предмет</button></div><div class="card"><b>Владелец</b><p>Telegram ID: 6038067496</p><small class="muted">Доступ дополнительно проверяется сервером.</small></div>`}
+async function openCase(code,n){
+ if(document.body.classList.contains("busy"))return;
+ busy(true);
+ try{
+  const j=await api('/api/cases/open',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({case_code:code,count:n,request_id:crypto.randomUUID()})
+  });
+  await refreshProfile();
+  await playCaseReveal(j.results||[],j);
+  render('cases');
+ }catch(e){toast(e.message)}
+ finally{busy(false)}
+}
+
+/* VLDST premium case reveal: deterministic landing, smooth GPU animation and no fake result. */
+async function playCaseReveal(results,j){
+ const modal=document.querySelector('#modal');
+ if(!results.length){toast('Предмет не получен');return}
+ const fillerPool=results.slice();
+ const targetIndex=34;
+ const filler=[];
+ const total=targetIndex+18;
+ for(let i=0;i<total;i++){
+  const base=fillerPool[i%fillerPool.length];
+  filler.push(base);
+ }
+ const winning=results[0];
+ filler[targetIndex]=winning;
+ const reel=filler;
+ modal.innerHTML=`<div class="modal-bg case-reveal-bg" onclick="event.stopPropagation()">
+  <div class="modal case-reveal-modal" onclick="event.stopPropagation()">
+   <div class="case-reveal-head">
+    <div><span class="badge">VLDST DROP</span><div class="reveal-title">Открываем кейс</div></div>
+    <div class="reveal-live"><i></i> LIVE</div>
+   </div>
+   <div class="case-reel-wrap" id="caseReelWrap">
+    <div class="reel-shine"></div>
+    <div class="case-marker"><span></span></div>
+    <div class="case-reel" id="caseReel">${reel.map((x,i)=>`
+      <div class="reel-item ${rarityClass[x.rarity]||''}" data-i="${i}">
+       <div class="reel-rarity">${em[x.rarity]||'✨'}</div>
+       <img src="${esc(x.image_url||`/static/assets/items/${x.item_code}.png`)}" alt="" decoding="async">
+       <small>${esc(x.name)}</small>
+      </div>`).join('')}</div>
+   </div>
+   <div class="reveal-progress"><i id="revealProgress"></i></div>
+   <div class="reveal-status" id="revealStatus">Подбираем предмет…</div>
+  </div>
+ </div>`;
+
+ const reelEl=document.querySelector('#caseReel');
+ const wrap=document.querySelector('#caseReelWrap');
+ if(!reelEl||!wrap)return;
+ await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+ const first=reelEl.querySelector('.reel-item');
+ const cs=getComputedStyle(reelEl);
+ const gap=parseFloat(cs.gap)||10;
+ const itemW=first?.getBoundingClientRect().width||112;
+ const step=itemW+gap;
+ const centerOffset=itemW/2;
+ const targetX=targetIndex*step+centerOffset;
+ reelEl.style.setProperty('--target-x',`${targetX}px`);
+ reelEl.style.transform=`translate3d(${-targetX}px,0,0)`;
+ reelEl.classList.add('case-spin');
+
+ const duration=window.matchMedia('(prefers-reduced-motion: reduce)').matches?4500:3600;
+ const progress=document.querySelector('#revealProgress');
+ const started=performance.now();
+ const tick=(now)=>{
+  const p=Math.min(1,(now-started)/duration);
+  if(progress)progress.style.transform=`scaleX(${p})`;
+  if(p<1)requestAnimationFrame(tick);
+ };
+ requestAnimationFrame(tick);
+
+ await new Promise(r=>setTimeout(r,duration+80));
+ reelEl.classList.remove('case-spin');
+ const landed=reelEl.querySelector(`[data-i="${targetIndex}"]`);
+ landed?.classList.add('winner');
+ const status=document.querySelector('#revealStatus');
+ if(status)status.innerHTML=`✨ Выпал <b>${esc(winning.name)}</b>`;
+ await new Promise(r=>setTimeout(r,700));
+
+ showModal(`<div class="result-modal">
+  <span class="badge">DROP COMPLETE</span>
+  <h2>🎉 ${j.idempotent?'Результат восстановлен':'Твой дроп'}</h2>
+  <div class="result-grid single-drop">${results.map((x,idx)=>`
+   <div class="result-card pop-drop" style="--delay:${idx*90}ms">
+    <div class="drop-glow ${rarityClass[x.rarity]||''}"></div>${card(x)}
+   </div>`).join('')}</div>
+  <div class="result-summary">
+   <span>Потрачено 🪙 ${Number(j.spent||0).toLocaleString()}</span>
+   <span>Осталось 🪙 ${Number(j.coins_left||0).toLocaleString()}</span>
+   <span>XP +${j.xp_gained||0}</span>
+  </div>
+  <button class="primary-action" onclick="closeModal()">ЗАБРАТЬ</button>
+ </div>`);
+}
+
+async function sell(code,q){try{const j=await api('/api/inventory/sell',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item_code:code,quantity:q})});toast(`Продано: +${j.coins_gained} 🪙`);await refreshProfile();render('inventory')}catch(e){toast(e.message)}}
+async function pinItem(code,pinned){try{await api('/api/inventory/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item_code:code,pinned})});toast(pinned?'📌 Закреплено':'📍 Откреплено');render('inventory')}catch(e){toast(e.message)}}
+async function daily(){try{const j=await api('/api/daily',{method:'POST'});toast(`🔥 День ${j.day}: +${j.coins} 🪙`);await refreshProfile();render('daily')}catch(e){toast(e.message)}}
+async function claimMission(id){try{const j=await api(`/api/missions/${id}/claim`,{method:'POST'});toast(`🎯 +${j.reward} 🪙`);await refreshProfile();render('missions')}catch(e){toast(e.message)}}
+async function claimAchievement(id){try{const j=await api(`/api/achievements/${id}/claim`,{method:'POST'});toast(`🏆 +${j.reward} 🪙`);await refreshProfile();render('achievements')}catch(e){toast(e.message)}}
+async function claimSeason(level,premium){try{const j=await api('/api/season/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level,premium})});toast(`🌌 +${j.reward} 🪙`);await refreshProfile();render('season')}catch(e){toast(e.message)}}
+async function buy(id){try{const j=await api('/api/shop/invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:id})});if(tg?.openInvoice)tg.openInvoice(j.invoice_url,status=>{if(status==='paid'){toast('⭐ Покупка оплачена');refreshProfile();render('shop')}else if(status==='failed')toast('Оплата не прошла')});else window.open(j.invoice_url,'_blank')}catch(e){toast(e.message)}}
+async function playGame(code,score=0){try{const j=await api('/api/games/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({game_code:code,score,request_id:crypto.randomUUID()})});toast(j.result==='LOSE'?'😅 Попробуй ещё раз':`⚡ ${j.result}: +${Number(j.reward).toLocaleString()} 🪙`);await refreshProfile();return j}catch(e){toast(e.message);throw e}}
+let reactor={running:false,score:0,combo:0,time:15,timer:null,targetTimer:null,misses:0};
+function reactorHud(){const s=document.querySelector('#rgScore'),c=document.querySelector('#rgCombo'),m=document.querySelector('#rgMisses');if(s)s.textContent=reactor.score;if(c)c.textContent=`${reactor.combo}×`;if(m)m.textContent=reactor.misses}
+function resetReactorCombo(){if(!reactor.running)return;reactor.combo=0;reactor.misses++;reactorHud();const arena=document.querySelector('#reactorArena');if(arena){arena.classList.remove('combo-break');void arena.offsetWidth;arena.classList.add('combo-break')}const note=document.querySelector('#rgStatus');if(note){note.textContent='ПРОМАХ — КОМБО СБИТО';note.classList.add('miss');setTimeout(()=>{if(note){note.textContent='Попадай точно, чтобы продолжить серию';note.classList.remove('miss')}},850)}}
+function startReactor(){if(reactor.running)return;reactor={running:true,score:0,combo:0,time:15,timer:null,targetTimer:null,misses:0};showModal(`<div class="reactor-game"><div class="reactor-top"><div><span class="badge">NEON REACTOR</span><h2>Поймай ядро</h2></div><div class="reactor-count"><b id="rgTime">15</b><small>SEC</small></div></div><div class="reactor-arena" id="reactorArena"><div class="reactor-target" id="reactorTarget" onclick="hitReactor()">✦</div><div class="reactor-line"></div></div><div class="reactor-hud"><div><b id="rgScore">0</b><small>ОЧКИ</small></div><div><b id="rgCombo">0×</b><small>КОМБО</small></div><div><b id="rgHits">0</b><small>ПОПАДАНИЙ</small></div></div><div class="reactor-miss-hud"><span id="rgMisses">0</span> промахов</div><p class="reactor-tip" id="rgStatus">Попадай точно, чтобы продолжить серию</p></div>`);spawnReactor();reactor.timer=setInterval(()=>{reactor.time--;const t=document.querySelector('#rgTime');if(t)t.textContent=reactor.time;if(reactor.time<=0)finishReactor()},1000)}
+function spawnReactor(){if(!reactor.running)return;clearTimeout(reactor.targetTimer);const a=document.querySelector('#reactorArena'),t=document.querySelector('#reactorTarget');if(!a||!t)return;const maxX=Math.max(20,a.clientWidth-76),maxY=Math.max(20,a.clientHeight-76);t.style.left=`${20+Math.random()*maxX}px`;t.style.top=`${20+Math.random()*maxY}px`;t.style.setProperty('--hue',`${20+Math.random()*300}`);t.classList.remove('hit');t.classList.add('spawn');void t.offsetWidth;t.classList.remove('spawn');reactor.targetTimer=setTimeout(()=>{if(reactor.running)resetReactorCombo();spawnReactor()},1150)}
+function hitReactor(){if(!reactor.running)return;clearTimeout(reactor.targetTimer);reactor.combo++;reactor.score+=10+Math.min(40,reactor.combo*3);const s=document.querySelector('#rgScore'),c=document.querySelector('#rgCombo'),h=document.querySelector('#rgHits');if(s)s.textContent=reactor.score;if(c)c.textContent=`${reactor.combo}×`;if(h)h.textContent=Number(h.textContent)+1;const t=document.querySelector('#reactorTarget');if(t){t.classList.remove('hit');void t.offsetWidth;t.classList.add('hit')}setTimeout(spawnReactor,120)}
+async function finishReactor(){if(!reactor.running)return;reactor.running=false;clearInterval(reactor.timer);clearTimeout(reactor.targetTimer);const finalScore=Math.min(100,Math.round(reactor.score/4));try{const j=await playGame('neon_reactor',finalScore);showModal(`<div class="result-modal reactor-result"><span class="badge">RUN COMPLETE</span><div class="reactor-final-icon">⚡</div><h2>${esc(j.result)}</h2><div class="stats"><div><b>${reactor.score}</b><small>Очки</small></div><div><b>${finalScore}%</b><small>Результат</small></div><div><b>🪙 ${Number(j.reward).toLocaleString()}</b><small>Награда</small></div></div><p class="reactor-tip">Промахи: ${reactor.misses} · Лучшее комбо: ${reactor.combo}×</p><button class="primary-action" onclick="closeModal();render('games')">ПРОДОЛЖИТЬ</button></div>`)}catch{closeModal()}}
+
+async function claimAd(id,url){try{if(url)tg?.openLink?.(url);const j=await api('/api/ads/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ad_id:id})});toast(`📢 +${j.reward} 🪙`);await refreshProfile();render('ads')}catch(e){toast(e.message)}}
+async function redeemPromo(){const code=document.querySelector('#promoInput')?.value?.trim();if(!code)return toast('Введи промокод');try{const j=await api('/api/promo/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});toast(`🎟 +${Number(j.coins).toLocaleString()} 🪙${j.xp?` · +${j.xp} XP`:''}`);await refreshProfile();render('more')}catch(e){toast(e.message)}}
+async function copyRef(link){try{await navigator.clipboard.writeText(link);toast('Ссылка скопирована')}catch{toast(link)}}
+async function adminUsers(){try{const j=await api('/api/admin/users');showModal(`<h2>👥 Пользователи</h2>${j.users.map(u=>`<div class="admin-row"><div><b>${esc(u.first_name||u.username||u.telegram_id)}</b><small>${u.telegram_id} · 🪙 ${Number(u.coins).toLocaleString()} · ${u.blocked?'BLOCKED':'ACTIVE'}</small></div><button onclick="adminAdjust(${u.telegram_id})">± 🪙</button></div>`).join('')}`)}catch(e){toast(e.message)}}
+async function adminGrant(){const id=prompt('Telegram ID пользователя');if(!id)return;const item=prompt('Код предмета, например VLDST-BR-001');if(!item)return;const q=Number(prompt('Количество','1'));if(!Number.isInteger(q)||q<1)return toast('Неверное количество');try{await api('/api/admin/inventory/grant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegram_id:Number(id),item_code:item,quantity:q})});toast('Предмет выдан');}catch(e){toast(e.message)}}
+async function adminPromos(){try{const j=await api('/api/admin/promos');showModal(`<h2>🎟 Промокоды</h2>${j.promos.map(p=>`<div class="admin-row"><div><b>${esc(p.code)}</b><small>🪙 ${p.reward_coins} · XP ${p.reward_xp} · ${p.used_count}/${p.max_uses} · ${p.active?'ACTIVE':'OFF'}</small></div><button onclick="togglePromo(${p.id},${!p.active})">${p.active?'OFF':'ON'}</button></div>`).join('')||'<p>Пока нет промокодов.</p>'}<button class="primary-action" onclick="createPromo()">+ Создать</button>`)}catch(e){toast(e.message)}}
+async function createPromo(){const code=prompt('Код промокода');if(!code)return;const coins=Number(prompt('Монеты','5000'));const xp=Number(prompt('XP','0'));const uses=Number(prompt('Лимит использований','100'));if(!Number.isInteger(coins)||!Number.isInteger(xp)||!Number.isInteger(uses)||uses<1)return toast('Неверные значения');try{await api('/api/admin/promos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,reward_coins:coins,reward_xp:xp,max_uses:uses,reward_premium:false})});toast('Промокод создан');adminPromos()}catch(e){toast(e.message)}}
+async function togglePromo(id,active){try{await api(`/api/admin/promos/${id}?active=${active}`,{method:'PATCH'});toast(active?'Промокод включён':'Промокод выключен');adminPromos()}catch(e){toast(e.message)}}
+async function adminAdjust(id){const a=prompt('Изменение монет (+/-):');if(a===null)return;const n=Number(a);if(!Number.isInteger(n)||!n)return toast('Введите целое число');try{await api('/api/admin/balance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegram_id:id,amount:n,reason:'V9 admin'})});toast('Баланс изменён');closeModal();render('admin')}catch(e){toast(e.message)}}
+async function adminAds(){try{const j=await api('/api/admin/ads');showModal(`<h2>📢 Реклама</h2>${j.ads.map(a=>`<div class="admin-row"><div><b>${esc(a.title)}</b><small>🪙 ${a.reward} · ${a.active?'ACTIVE':'OFF'} · лимит ${a.daily_limit}</small></div><button onclick="toggleAd(${a.id},${!a.active})">${a.active?'OFF':'ON'}</button></div>`).join('')}<button class="primary-action" onclick="createAd()">+ Создать рекламу</button>`)}catch(e){toast(e.message)}}
+async function toggleAd(id,active){try{await api(`/api/admin/ads/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});toast(active?'Реклама включена':'Реклама выключена');adminAds()}catch(e){toast(e.message)}}
+async function createAd(){const title=prompt('Название рекламы');if(!title)return;const reward=Number(prompt('Награда','500'));if(!Number.isInteger(reward)||reward<0)return toast('Неверная награда');try{await api('/api/admin/ads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:'Рекламное задание',reward,url:'',daily_limit:1,cooldown_seconds:86400,active:true})});toast('Реклама создана');adminAds()}catch(e){toast(e.message)}}
+async function adminPayments(){try{const [p,s]=await Promise.all([api('/api/admin/payments'),api('/api/admin/stars')]);showModal(`<h2>⭐ Telegram Stars</h2><div class="stats"><div><b>${s.stats.paid_count}</b><small>Оплачено</small></div><div><b>⭐ ${s.stats.paid_stars}</b><small>Stars</small></div><div><b>${s.stats.total}</b><small>Всего</small></div></div>${p.payments.map(x=>`<div class="admin-row"><div><b>${esc(x.username||x.telegram_id)}</b><small>${esc(x.status)} · ${x.amount} ${esc(x.currency||'')}</small></div></div>`).join('')}`)}catch(e){toast(e.message)}}
+async function adminAudit(){try{const j=await api('/api/admin/audit');showModal(`<h2>📝 Аудит</h2>${j.audit.map(x=>`<div class="admin-row"><div><b>${esc(x.action)}</b><small>${esc(x.created_at)} · target ${esc(x.target_user_id||'—')}</small></div></div>`).join('')||'<p>Пусто</p>'}`)}catch(e){toast(e.message)}}
+async function adminCatalog(){try{const j=await api('/api/admin/catalog');showModal(`<h2>🎁 Каталог</h2>${j.cases.map(x=>`<div class="admin-row"><div><b>${esc(x.name)}</b><small>${esc(x.case_code)} · ${x.items} предметов · 🪙 ${x.price}</small></div><span class="badge">${x.active?'ACTIVE':'OFF'}</span></div>`).join('')}`)}catch(e){toast(e.message)}}
+function showModal(html){document.querySelector('#modal').innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">${html}</div></div>`}function closeModal(){document.querySelector('#modal').innerHTML=''}
+async function refreshProfile(){profile=await api('/api/profile');document.querySelector('#coins').textContent='🪙 '+Number(profile.coins).toLocaleString();document.querySelector('#level').textContent=`LVL ${profile.level}`}
+async function detectAdmin(){try{await api('/api/admin/me');isAdmin=true}catch{isAdmin=false}}
+async function load(){try{await refreshProfile();await detectAdmin();render('home')}catch(e){document.querySelector('#coins').textContent='Открой приложение через Telegram';document.querySelector('#content').innerHTML='<div class="error card"><h2>VLDST CASE X</h2><p>Открой приложение из Telegram, чтобы авторизация WebApp сработала.</p></div>'}}
+load();

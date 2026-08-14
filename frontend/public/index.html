@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ff7a18">
+<title>VLDST CASE X — FINAL RELEASE</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+<header class="topbar"><div class="brand"><span class="brand-mark">V</span><div><b>VLDST CASE X</b><small id="level">LVL 1</small></div></div><div class="wallet" id="coins">🪙 —</div></header>
+<div id="content"></div>
+<div id="modal"></div>
+<nav class="bottom-nav" id="bottomNav">
+  <button data-page="home" onclick="render('home')"><span>⌂</span>Главная</button>
+  <button data-page="cases" onclick="render('cases')"><span>🎁</span>Кейсы</button>
+  <button data-page="games" onclick="render('games')"><span>🎮</span>Игры</button>
+  <button data-page="inventory" onclick="render('inventory')"><span>🎒</span>Инвентарь</button>
+  <button data-page="more" onclick="render('more')"><span>☰</span>Ещё</button>
+</nav>
+<script src="/static/app.js"></script>
+</div>
+</body>
+</html>

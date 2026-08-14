@@ -848,9 +848,26 @@ def referrals(
         ),
         {"u": u["id"]},
     ).mappings().first()
+
+    link = f"https://t.me/VLDST_CASE_Xbot?start=ref_{u['id']}"
+
+    share_text = (
+        "🔥 VLDST CASE X\n\n"
+        "🎁 Я уже играю в VLDST CASE X — открываю кейсы "
+        "и собираю редкие предметы!\n\n"
+        "⚡ Залетай по моей ссылке и забирай свой стартовый бонус:\n\n"
+        f"👉 {link}\n\n"
+        "🎁 +1000 монет за приглашение\n"
+        "🔥 Открывай кейсы\n"
+        "🏆 Собирай редкие предметы\n"
+        "🎮 Играй в NEON REACTOR\n\n"
+        "🚀 Увидимся внутри VLDST CASE X!"
+    )
+
     return {
         **dict(r),
-        "link": f"https://t.me/VLDST_CASE_Xbot?start=ref_{u['id']}",
+        "link": link,
+        "share_text": share_text,
     }
 
 

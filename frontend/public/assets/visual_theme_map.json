@@ -1,0 +1,70 @@
+{
+  "themes": {
+    "bronze": {
+      "primary": "#b86b2d",
+      "dark": "#5a2c12"
+    },
+    "silver": {
+      "primary": "#d9e7f2",
+      "dark": "#607487"
+    },
+    "gold": {
+      "primary": "#ffd34a",
+      "dark": "#6a3d00"
+    },
+    "diamond": {
+      "primary": "#8be9ff",
+      "dark": "#145d86"
+    },
+    "royal": {
+      "primary": "#d8a8ff",
+      "dark": "#4b1e77"
+    },
+    "galaxy": {
+      "primary": "#8d6cff",
+      "dark": "#24104d"
+    },
+    "cyber": {
+      "primary": "#20e8ff",
+      "dark": "#064b64"
+    },
+    "inferno": {
+      "primary": "#ff5a19",
+      "dark": "#641300"
+    },
+    "shadow": {
+      "primary": "#a7b0bd",
+      "dark": "#12151b"
+    },
+    "dragon": {
+      "primary": "#ff3c2e",
+      "dark": "#4a0705"
+    }
+  },
+  "rarities": {
+    "COMMON": {
+      "primary": "#aab0b8",
+      "dark": "#20242a"
+    },
+    "UNCOMMON": {
+      "primary": "#70d7a5",
+      "dark": "#0c3324"
+    },
+    "RARE": {
+      "primary": "#2bb9ff",
+      "dark": "#082b55"
+    },
+    "EPIC": {
+      "primary": "#cf5cff",
+      "dark": "#35105b"
+    },
+    "LEGENDARY": {
+      "primary": "#ffca32",
+      "dark": "#5b3500"
+    },
+    "MYTHIC": {
+      "primary": "#ff3f36",
+      "dark": "#5a0808"
+    }
+  }
+}

@@ -14,14 +14,14 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import engine, get_db, SessionLocal
+from .db import engine, get_db
 from .game_data import CASES, RARITY_CHANCES
 from .security import validate_telegram_init_data
 
 log = logging.getLogger("vldst")
 rng = SystemRandom()
 
-app = FastAPI(title="VLDST CASE X", version="9.1.1")
+app = FastAPI(title="VLDST CASE X", version="10.0.0")
 app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
 app.add_middleware(
     CORSMiddleware,
@@ -240,7 +240,7 @@ def mini():
 def meta():
     return {
         "name": "VLDST CASE X",
-        "version": "9.0.0",
+        "version": "10.0.0",
         "channel": settings.telegram_channel_url,
     }
 
@@ -383,6 +383,10 @@ def open_case(
                     "m": req.case_code,
                 },
             )
+            db.execute(text("INSERT INTO player_world(user_id,points) VALUES(:u,:p) ON CONFLICT(user_id) DO UPDATE SET points=player_world.points+:p,updated_at=NOW()"), {"u": locked["id"], "p": req.count})
+            db.execute(text("INSERT INTO item_history(user_id,item_code,action,meta) SELECT :u,item_code,'DROP',:m FROM jsonb_array_elements(:j::jsonb) x CROSS JOIN LATERAL jsonb_to_record(x) AS r(item_code text)"), {"u": locked["id"], "m": json.dumps({"case": req.case_code}), "j": json.dumps(results, ensure_ascii=False)})
+            db.execute(text("UPDATE global_events SET progress=LEAST(target,progress+:p) WHERE active AND ends_at>NOW()"), {"p": req.count})
+            db.execute(text("INSERT INTO event_contributions(event_id,user_id,points) SELECT id,:u,:p FROM global_events WHERE active AND ends_at>NOW() ON CONFLICT(event_id,user_id) DO UPDATE SET points=event_contributions.points+:p,updated_at=NOW()"), {"u": locked["id"], "p": req.count})
     except HTTPException:
         db.rollback()
         raise
@@ -848,26 +852,9 @@ def referrals(
         ),
         {"u": u["id"]},
     ).mappings().first()
-
-    link = f"https://t.me/VLDST_CASE_Xbot?start=ref_{u['id']}"
-
-    share_text = (
-        "🔥 VLDST CASE X\n\n"
-        "🎁 Я уже играю в VLDST CASE X — открываю кейсы "
-        "и собираю редкие предметы!\n\n"
-        "⚡ Залетай по моей ссылке и забирай свой стартовый бонус:\n\n"
-        f"👉 {link}\n\n"
-        "🎁 +1000 монет за приглашение\n"
-        "🔥 Открывай кейсы\n"
-        "🏆 Собирай редкие предметы\n"
-        "🎮 Играй в NEON REACTOR\n\n"
-        "🚀 Увидимся внутри VLDST CASE X!"
-    )
-
     return {
         **dict(r),
-        "link": link,
-        "share_text": share_text,
+        "link": f"https://t.me/VLDST_CASE_Xbot?start=ref_{u['id']}",
     }
 
 
@@ -921,6 +908,185 @@ def leaderboard(db: Session = Depends(get_db)):
             ).mappings()
         ]
     }
+
+
+# ---------------- V10 WORLD / DNA / SOCIAL SYSTEMS ----------------
+FACTIONS = {
+    "INFERNO": {"emoji": "🔥", "title": "INFERNO"},
+    "NEON": {"emoji": "⚡", "title": "NEON"},
+    "GALAXY": {"emoji": "🌌", "title": "GALAXY"},
+    "DRAGON": {"emoji": "🐉", "title": "DRAGON"},
+}
+
+
+def _ensure_v10_user(db: Session, user_id: int):
+    db.execute(text("INSERT INTO player_world(user_id) VALUES(:u) ON CONFLICT DO NOTHING"), {"u": user_id})
+    db.execute(text("INSERT INTO player_dna(user_id) VALUES(:u) ON CONFLICT DO NOTHING"), {"u": user_id})
+
+
+def _update_dna(db: Session, user_id: int):
+    rows = db.execute(text("""
+        SELECT COALESCE(SUM(CASE WHEN c.theme ILIKE '%inferno%' THEN i.quantity ELSE 0 END),0) inferno,
+               COALESCE(SUM(CASE WHEN c.theme ILIKE '%cyber%' OR c.theme ILIKE '%neon%' THEN i.quantity ELSE 0 END),0) neon,
+               COALESCE(SUM(CASE WHEN c.theme ILIKE '%galaxy%' THEN i.quantity ELSE 0 END),0) galaxy,
+               COUNT(DISTINCT CASE WHEN i.quantity > 0 THEN i.item_code END) collector
+        FROM inventory i JOIN items it ON it.item_code=i.item_code JOIN cases c ON c.case_code=it.case_code
+        WHERE i.user_id=:u
+    """), {"u": user_id}).mappings().first()
+    social = db.execute(text("SELECT COUNT(*) FROM referrals WHERE referrer_id=:u AND active"), {"u": user_id}).scalar() or 0
+    vals = {"u": user_id, **dict(rows), "social": social}
+    db.execute(text("""UPDATE player_dna SET inferno=:inferno,neon=:neon,galaxy=:galaxy,collector=:collector,social=:social,updated_at=NOW() WHERE user_id=:u"""), vals)
+
+
+@app.get("/api/world")
+def world(x_telegram_init_data: str=Header(...), db: Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data); _ensure_v10_user(db,u["id"]); _update_dna(db,u["id"]); db.commit()
+    w=dict(db.execute(text("SELECT * FROM player_world WHERE user_id=:u"),{"u":u["id"]}).mappings().first())
+    dna=dict(db.execute(text("SELECT inferno,neon,galaxy,collector,social FROM player_dna WHERE user_id=:u"),{"u":u["id"]}).mappings().first())
+    f=db.execute(text("SELECT faction FROM player_factions WHERE user_id=:u"),{"u":u["id"]}).scalar()
+    event=db.execute(text("SELECT code,title,description,target,progress,reward,ends_at FROM global_events WHERE active AND ends_at>NOW() ORDER BY ends_at LIMIT 1")).mappings().first()
+    factions=[{**v,"code":k,"points":int(db.execute(text("SELECT COALESCE(SUM(points),0) FROM event_contributions ec JOIN player_factions pf ON pf.user_id=ec.user_id WHERE pf.faction=:f"),{"f":k}).scalar() or 0)} for k,v in FACTIONS.items()]
+    return {"world":w,"dna":dna,"faction":f,"factions":factions,"event":dict(event) if event else None}
+
+
+class FactionReq(BaseModel):
+    faction: str
+
+@app.post("/api/world/faction")
+def choose_faction(req:FactionReq,x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data); code=req.faction.upper()
+    if code not in FACTIONS: raise HTTPException(400,"Неизвестная фракция")
+    exists=db.execute(text("SELECT faction FROM player_factions WHERE user_id=:u"),{"u":u["id"]}).scalar()
+    if exists: raise HTTPException(400,"Фракция уже выбрана")
+    db.execute(text("INSERT INTO player_factions(user_id,faction) VALUES(:u,:f)"),{"u":u["id"],"f":code}); db.commit()
+    return {"ok":True,"faction":code}
+
+
+@app.get("/api/dna")
+def dna(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data); _ensure_v10_user(db,u["id"]); _update_dna(db,u["id"]); db.commit()
+    return dict(db.execute(text("SELECT inferno,neon,galaxy,collector,social FROM player_dna WHERE user_id=:u"),{"u":u["id"]}).mappings().first())
+
+
+@app.get("/api/legacy")
+def legacy(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data)
+    return {"legacy_level":int(u["legacy_level"]),"level":int(u["level"]),"can_ascend":int(u["level"])>=100,"bonus":int(u["legacy_level"])*5}
+
+@app.post("/api/legacy/ascend")
+def legacy_ascend(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data)
+    if int(u["level"])<100: raise HTTPException(400,"Legacy доступен с 100 уровня")
+    new_legacy=int(u["legacy_level"])+1
+    db.execute(text("UPDATE users SET legacy_level=:l,level=1,xp=0,coins=GREATEST(5000,coins/10) WHERE id=:u"),{"l":new_legacy,"u":u["id"]})
+    db.execute(text("INSERT INTO economy_transactions(user_id,kind,amount,meta) VALUES(:u,'LEGACY',0,:m)"),{"u":u["id"],"m":str(new_legacy)})
+    db.commit(); return {"ok":True,"legacy_level":new_legacy}
+
+
+@app.get("/api/events")
+def events(db:Session=Depends(get_db)):
+    rows=db.execute(text("SELECT code,title,description,target,progress,reward,ends_at FROM global_events WHERE active ORDER BY ends_at")).mappings()
+    return {"events":[dict(r) for r in rows]}
+
+@app.post("/api/events/contribute")
+def contribute_event(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data); ev=db.execute(text("SELECT * FROM global_events WHERE active AND ends_at>NOW() ORDER BY ends_at LIMIT 1 FOR UPDATE")).mappings().first()
+    if not ev: raise HTTPException(404,"Нет активного события")
+    points=1
+    db.execute(text("UPDATE global_events SET progress=progress+:p WHERE id=:e"),{"p":points,"e":ev["id"]})
+    db.execute(text("INSERT INTO event_contributions(event_id,user_id,points) VALUES(:e,:u,:p) ON CONFLICT(event_id,user_id) DO UPDATE SET points=event_contributions.points+:p,updated_at=NOW()"),{"e":ev["id"],"u":u["id"],"p":points})
+    db.execute(text("UPDATE player_world SET points=points+:p,updated_at=NOW() WHERE user_id=:u"),{"p":points,"u":u["id"]})
+    db.commit(); return {"ok":True,"points":points}
+
+
+@app.get("/api/forge")
+def forge(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    current_user(db,x_telegram_init_data)
+    return {"recipes":[dict(r) for r in db.execute(text("SELECT recipe_id,title,result_item_code,ingredients,cost FROM forge_recipes WHERE active ORDER BY recipe_id")).mappings()]}
+
+class ForgeReq(BaseModel):
+    recipe_id:str
+
+@app.post("/api/forge/craft")
+def forge_craft(req:ForgeReq,x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data)
+    recipe=db.execute(text("SELECT * FROM forge_recipes WHERE recipe_id=:r AND active"),{"r":req.recipe_id}).mappings().first()
+    if not recipe: raise HTTPException(404,"Рецепт не найден")
+    ingredients=recipe["ingredients"] if isinstance(recipe["ingredients"],dict) else json.loads(recipe["ingredients"])
+    with db.begin():
+        locked=db.execute(text("SELECT coins FROM users WHERE id=:u FOR UPDATE"),{"u":u["id"]}).mappings().first()
+        if int(locked["coins"])<int(recipe["cost"]): raise HTTPException(400,"Недостаточно монет")
+        for code,qty in ingredients.items():
+            have=db.execute(text("SELECT quantity FROM inventory WHERE user_id=:u AND item_code=:i"),{"u":u["id"],"i":code}).scalar() or 0
+            if int(have)<int(qty): raise HTTPException(400,f"Нужно {qty} × {code}")
+        for code,qty in ingredients.items(): db.execute(text("UPDATE inventory SET quantity=quantity-:q WHERE user_id=:u AND item_code=:i"),{"q":qty,"u":u["id"],"i":code})
+        result=recipe["result_item_code"]
+        db.execute(text("INSERT INTO inventory(user_id,item_code,quantity) VALUES(:u,:i,1) ON CONFLICT(user_id,item_code) DO UPDATE SET quantity=inventory.quantity+1,acquired_at=NOW()"),{"u":u["id"],"i":result})
+        db.execute(text("UPDATE users SET coins=coins-:c WHERE id=:u"),{"c":recipe["cost"],"u":u["id"]})
+        db.execute(text("INSERT INTO item_history(user_id,item_code,action,meta) VALUES(:u,:i,'CRAFT',:m)"),{"u":u["id"],"i":result,"m":json.dumps({"recipe":req.recipe_id})})
+    return {"ok":True,"item_code":result}
+
+
+@app.get("/api/item-history/{item_code}")
+def item_history(item_code:str,x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    current_user(db,x_telegram_init_data)
+    rows=db.execute(text("SELECT action,meta,created_at FROM item_history WHERE item_code=:i ORDER BY created_at DESC LIMIT 50"),{"i":item_code}).mappings()
+    return {"item_code":item_code,"history":[dict(r) for r in rows]}
+
+
+@app.get("/api/secret-sets")
+def secret_sets(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data)
+    rows=db.execute(text("SELECT item_code,quantity FROM inventory WHERE user_id=:u AND quantity>0"),{"u":u["id"]}).mappings()
+    owned={r["item_code"] for r in rows}
+    # Secret sets use the first three items from selected themed series; easy to extend without schema changes.
+    sets=[]
+    for prefix,title,reward in [("VLDST-IN","INFERNO HUNTER",5000),("VLDST-CY","NEON HUNTER",5000),("VLDST-GA","GALAXY SEEKER",7500),("VLDST-DR","DRAGON LORD",10000)]:
+        codes=[f"{prefix}-{i:03d}" for i in range(1,4)]
+        got=sum(c in owned for c in codes)
+        sets.append({"code":prefix,"title":title,"owned":got,"total":3,"discovered":got==3,"reward":reward})
+    return {"sets":sets}
+
+
+@app.get("/api/creator")
+def creator(x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data)
+    row=db.execute(text("SELECT code,uses,reward,active FROM creator_codes WHERE owner_user_id=:u ORDER BY created_at DESC LIMIT 1"),{"u":u["id"]}).mappings().first()
+    return {"code":dict(row) if row else None}
+
+class CreatorReq(BaseModel):
+    code:str=Field(min_length=3,max_length=24)
+
+@app.post("/api/creator")
+def create_creator(req:CreatorReq,x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data); code=req.code.strip().upper()
+    if db.execute(text("SELECT 1 FROM creator_codes WHERE code=:c"),{"c":code}).scalar(): raise HTTPException(400,"Код уже занят")
+    db.execute(text("INSERT INTO creator_codes(code,owner_user_id,reward) VALUES(:c,:u,1000)"),{"c":code,"u":u["id"]}); db.commit(); return {"ok":True,"code":code}
+
+class CreatorUseReq(BaseModel):
+    code:str
+
+@app.post("/api/creator/use")
+def use_creator(req:CreatorUseReq,x_telegram_init_data:str=Header(...),db:Session=Depends(get_db)):
+    u=current_user(db,x_telegram_init_data); code=req.code.strip().upper()
+    row=db.execute(text("SELECT * FROM creator_codes WHERE code=:c AND active FOR UPDATE"),{"c":code}).mappings().first()
+    if not row: raise HTTPException(404,"Код не найден")
+    try:
+        with db.begin():
+            db.execute(text("INSERT INTO creator_uses(code,user_id) VALUES(:c,:u)"),{"c":code,"u":u["id"]})
+            db.execute(text("UPDATE creator_codes SET uses=uses+1 WHERE code=:c"),{"c":code})
+            db.execute(text("UPDATE users SET coins=coins+:r WHERE id=:u"),{"r":row["reward"],"u":u["id"]})
+    except Exception: db.rollback(); raise HTTPException(400,"Код уже использован")
+    return {"ok":True,"reward":int(row["reward"])}
+
+
+# Seed one global event and simple forge recipes after normal catalog seed.
+def seed_v10(db: Session):
+    db.execute(text("""INSERT INTO global_events(code,title,description,target,progress,reward,ends_at,active) VALUES('DRAGON_INVASION','DRAGON INVASION','Откройте кейсы вместе и заполните шкалу события.',1000000,0,5000,NOW()+INTERVAL '7 days',TRUE) ON CONFLICT(code) DO NOTHING"""))
+    rows=db.execute(text("SELECT item_code FROM items WHERE item_code LIKE 'VLDST-IN-%' ORDER BY item_code LIMIT 3")).scalars().all()
+    if len(rows)>=3:
+        db.execute(text("""INSERT INTO forge_recipes(recipe_id,title,result_item_code,ingredients,cost) VALUES('inferno_core','INFERNO CORE',:r,:ing,1000) ON CONFLICT(recipe_id) DO NOTHING"""),{"r":rows[2],"ing":json.dumps({rows[0]:1,rows[1]:1})})
+    db.commit()
 
 
 # ---------------- V9 FINAL RELEASE ADMIN / PLATFORM ----------------
@@ -1191,7 +1357,7 @@ async def bot_loop():
         if arg.startswith("ref_"):
             try:
                 ref_id = int(arg[4:])
-                with SessionLocal() as db:
+                with next(get_db()) as db:
                     u = ensure_user(
                         db,
                         {
@@ -1257,7 +1423,7 @@ async def bot_loop():
             user_id = int(parts[2])
         except ValueError:
             return
-        with SessionLocal() as db:
+        with next(get_db()) as db:
             payment_id = sp.telegram_payment_charge_id
             inserted = db.execute(
                 text(
@@ -1364,6 +1530,8 @@ def ensure_schema():
 async def startup():
     ensure_schema()
     if engine:
+        with Session(engine) as db:
+            seed_v10(db)
         with engine.begin() as conn:
             conn.execute(text("SELECT 1"))
     asyncio.create_task(bot_loop())

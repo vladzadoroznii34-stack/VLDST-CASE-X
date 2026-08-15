@@ -181,3 +181,81 @@ CREATE TABLE IF NOT EXISTS promo_redemptions(
 );
 CREATE INDEX IF NOT EXISTS idx_promo_active ON promo_codes(active,expires_at);
 CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_redemptions(user_id,redeemed_at DESC);
+
+
+-- V10 social world / DNA / legacy / events / forge / creator systems
+CREATE TABLE IF NOT EXISTS player_world(
+ user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ core_level INT NOT NULL DEFAULT 1,
+ reactor_level INT NOT NULL DEFAULT 1,
+ vault_level INT NOT NULL DEFAULT 1,
+ forge_level INT NOT NULL DEFAULT 1,
+ points BIGINT NOT NULL DEFAULT 0,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS player_dna(
+ user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ inferno INT NOT NULL DEFAULT 0,
+ neon INT NOT NULL DEFAULT 0,
+ galaxy INT NOT NULL DEFAULT 0,
+ collector INT NOT NULL DEFAULT 0,
+ social INT NOT NULL DEFAULT 0,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS player_factions(
+ user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ faction TEXT NOT NULL,
+ joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS global_events(
+ id BIGSERIAL PRIMARY KEY,
+ code TEXT UNIQUE NOT NULL,
+ title TEXT NOT NULL,
+ description TEXT NOT NULL DEFAULT '',
+ target BIGINT NOT NULL DEFAULT 0,
+ progress BIGINT NOT NULL DEFAULT 0,
+ reward BIGINT NOT NULL DEFAULT 0,
+ ends_at TIMESTAMPTZ NOT NULL,
+ active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS event_contributions(
+ event_id BIGINT REFERENCES global_events(id) ON DELETE CASCADE,
+ user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+ points BIGINT NOT NULL DEFAULT 0,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY(event_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS item_history(
+ id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+ item_code TEXT REFERENCES items(item_code) ON DELETE SET NULL,
+ action TEXT NOT NULL,
+ meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS forge_recipes(
+ recipe_id TEXT PRIMARY KEY,
+ title TEXT NOT NULL,
+ result_item_code TEXT REFERENCES items(item_code),
+ ingredients JSONB NOT NULL,
+ cost BIGINT NOT NULL DEFAULT 0,
+ active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS creator_codes(
+ code TEXT PRIMARY KEY,
+ owner_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+ uses BIGINT NOT NULL DEFAULT 0,
+ reward BIGINT NOT NULL DEFAULT 0,
+ active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS creator_uses(
+ code TEXT REFERENCES creator_codes(code) ON DELETE CASCADE,
+ user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY(code,user_id)
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS legacy_level INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS faction_points BIGINT NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_event_contributions_event ON event_contributions(event_id,points DESC);
+CREATE INDEX IF NOT EXISTS idx_item_history_item ON item_history(item_code,created_at DESC);

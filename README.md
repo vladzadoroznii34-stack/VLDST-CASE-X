@@ -49,3 +49,29 @@ node --check frontend/public/app.js
 Push the repository to GitHub and deploy the `main` branch through Render. Open the Mini App from the Telegram bot after the deploy is live.
 
 Important: only one running instance may use Telegram long polling for the same bot token. Stop any old V8/local bot before starting the final production bot.
+
+## VLDST Visual Pack
+
+The release includes a refreshed non-SVG visual pack:
+- 10 themed case renders in `frontend/public/assets/cases/`.
+- 90 item renders in `frontend/public/assets/items/`.
+- `frontend/public/assets/visual_theme_map.json` with theme/rarity colors.
+- `marketing/VLDST-CASE-X-VISUAL-CATALOG.png` as a promotional visual reference.
+
+The existing API asset paths remain unchanged, so no game logic or database migration is required for the visual replacement.
+
+## V10.0.0 — THE WORLD
+
+New systems added:
+- VLDST WORLD: Core / Reactor / Vault / Forge progression.
+- VLDST DNA: Inferno / Neon / Galaxy / Collector / Social profile.
+- Factions: INFERNO / NEON / GALAXY / DRAGON.
+- Global Events with server-wide progress and contributions.
+- Secret Collections.
+- Forge recipes and crafting.
+- Legacy progression after level 100.
+- Item history ledger for drops and crafts.
+- Creator Codes for TikTok/Telegram promotion.
+- Case openings now contribute to the active global event and World points.
+
+The existing 20 case assets and 180 item assets are preserved.

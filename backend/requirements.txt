@@ -1,6 +1,7 @@
-fastapi>=0.115,<1
-uvicorn[standard]>=0.30,<1
-pydantic-settings>=2.5,<3
-SQLAlchemy>=2.0,<3
-psycopg>=3.2,<4
-aiogram>=3.13,<4
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+pydantic==2.11.3
+pydantic-settings==2.9.1
+SQLAlchemy==2.0.40
+psycopg==3.2.6
+aiogram==3.20.0

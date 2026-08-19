@@ -384,7 +384,27 @@ def open_case(
                 },
             )
             db.execute(text("INSERT INTO player_world(user_id,points) VALUES(:u,:p) ON CONFLICT(user_id) DO UPDATE SET points=player_world.points+:p,updated_at=NOW()"), {"u": locked["id"], "p": req.count})
-            db.execute(text("INSERT INTO item_history(user_id,item_code,action,meta) SELECT :u,item_code,'DROP',:m FROM jsonb_array_elements(:j::jsonb) x CROSS JOIN LATERAL jsonb_to_record(x) AS r(item_code text)"), {"u": locked["id"], "m": json.dumps({"case": req.case_code}), "j": json.dumps(results, ensure_ascii=False)})
+            for result in results:
+                item_code = result.get("item_code")
+                if not item_code:
+                    continue
+
+                db.execute(
+                    text("""
+                        INSERT INTO item_history
+                            (user_id, item_code, action, meta)
+                        VALUES
+                            (:u, :item_code, 'DROP', :m)
+                    """),
+                    {
+                        "u": locked["id"],
+                        "item_code": item_code,
+                        "m": json.dumps(
+                            {"case": req.case_code},
+                            ensure_ascii=False,
+                        ),
+                    },
+                )
             db.execute(text("UPDATE global_events SET progress=LEAST(target,progress+:p) WHERE active AND ends_at>NOW()"), {"p": req.count})
             db.execute(text("INSERT INTO event_contributions(event_id,user_id,points) SELECT id,:u,:p FROM global_events WHERE active AND ends_at>NOW() ON CONFLICT(event_id,user_id) DO UPDATE SET points=event_contributions.points+:p,updated_at=NOW()"), {"u": locked["id"], "p": req.count})
     except HTTPException:

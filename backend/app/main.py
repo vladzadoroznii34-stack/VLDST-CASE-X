@@ -21,7 +21,7 @@ from .security import validate_telegram_init_data
 log = logging.getLogger("vldst")
 rng = SystemRandom()
 
-app = FastAPI(title="VLDST CASE X", version="10.1.0")
+app = FastAPI(title="VLDST CASE X", version="10.1.0", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
 app.add_middleware(
     CORSMiddleware,

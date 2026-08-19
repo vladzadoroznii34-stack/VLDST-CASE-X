@@ -1,2 +1,0 @@
-# Security
-Telegram initData is validated server-side. Frontend cannot choose RNG results or mutate Coins/items/XP. Case opening uses row locking + one transaction + request_id idempotency. Inventory sales validate ownership and pinned state. Stars are limited to predefined digital products and do not affect RNG. Payment fulfillment is keyed by telegram_payment_charge_id. Secrets stay in Render environment variables.

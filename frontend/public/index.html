@@ -11,8 +11,9 @@
 <body>
 <div id="app">
 <header class="topbar"><div class="brand"><span class="brand-mark">V</span><div><b>VLDST CASE X</b><small id="level">LVL 1</small></div></div><div class="wallet" id="coins">🪙 —</div></header>
-<div id="content"></div>
+<div id="content" aria-live="polite"></div>
 <div id="modal"></div>
+<div id="globalLoader" class="global-loader" aria-hidden="true"><span></span><b>VLDST</b></div>
 <nav class="bottom-nav" id="bottomNav">
   <button data-page="home" onclick="render('home')"><span>⌂</span>Главная</button>
   <button data-page="cases" onclick="render('cases')"><span>🎁</span>Кейсы</button>

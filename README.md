@@ -60,7 +60,7 @@ The release includes a refreshed non-SVG visual pack:
 
 The existing API asset paths remain unchanged, so no game logic or database migration is required for the visual replacement.
 
-## V10.1.0 — THE WORLD
+## V10.0.0 — THE WORLD
 
 New systems added:
 - VLDST WORLD: Core / Reactor / Vault / Forge progression.
@@ -75,13 +75,3 @@ New systems added:
 - Case openings now contribute to the active global event and World points.
 
 The existing 20 case assets and 180 item assets are preserved.
-
-
-## V10.1.0 — stable update
-- Mobile scrolling/navigation hardened for Telegram WebApp and safe-area insets.
-- Case opening supports x1/x3/x5/x10 with centered deterministic reveal.
-- Daily day 7 grants a ticket.
-- Item history, creator self-use protection and admin user blocking included.
-- Local WebApp settings for animation/sound/haptic preferences.
-- New V10.1 update artwork in `frontend/public/assets/v101-update.png`.
-- API timeout/error handling improved on the client.

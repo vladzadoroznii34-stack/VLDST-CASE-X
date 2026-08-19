@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS users(
  coins BIGINT NOT NULL DEFAULT 5000,
  xp BIGINT NOT NULL DEFAULT 0,
  level INT NOT NULL DEFAULT 1,
- tickets INT NOT NULL DEFAULT 0,
  daily_streak INT NOT NULL DEFAULT 0,
  last_daily DATE,
  premium BOOLEAN NOT NULL DEFAULT FALSE,
@@ -161,7 +160,7 @@ CREATE INDEX IF NOT EXISTS idx_ads_active ON ad_campaigns(active);
 CREATE INDEX IF NOT EXISTS idx_game_plays_user_day ON game_plays(user_id,created_at DESC);
 
 
--- V10.1 final monetization / promo / economy tools
+-- V9 final monetization / promo / economy tools
 CREATE TABLE IF NOT EXISTS promo_codes(
  id BIGSERIAL PRIMARY KEY,
  code TEXT UNIQUE NOT NULL,

@@ -21,7 +21,7 @@ from .security import validate_telegram_init_data
 log = logging.getLogger("vldst")
 rng = SystemRandom()
 
-app = FastAPI(title="VLDST CASE X", version="10.1.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="VLDST CASE X", version="10.1.0")
 app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
 app.add_middleware(
     CORSMiddleware,
@@ -73,10 +73,7 @@ async def startup_bootstrap():
 
 ASSET_BASE = "/static/assets"
 def item_asset(item_code: str) -> str:
-    # Canonical assets use the full item code; keep a short-code fallback for old installs.
-    code = str(item_code)
-    short = code.replace("VLDST-", "").replace("-", "")
-    return f"{ASSET_BASE}/items/{code}.png?rev=10.1"
+    return f"{ASSET_BASE}/items/{item_code}.png"
 def case_asset(case_code: str) -> str:
     return f"{ASSET_BASE}/cases/{case_code}.png"
 def enrich_item(item: dict) -> dict:
@@ -554,9 +551,6 @@ def daily(
                 streak = 0
             streak += 1
             reward = [500, 750, 1000, 1500, 2000, 3000, 5000][(streak - 1) % 7]
-            day = (streak - 1) % 7 + 1
-            if day == 7:
-                db.execute(text("UPDATE users SET tickets=tickets+1 WHERE id=:u"), {"u": locked["id"]})
             db.execute(
                 text(
                     "UPDATE users SET coins=coins+:c,last_daily=:d,daily_streak=:s "
@@ -576,9 +570,8 @@ def daily(
         raise
     return {
         "ok": True,
-        "day": day,
+        "day": (streak - 1) % 7 + 1,
         "coins": reward,
-        "ticket": day == 7,
         "streak": streak,
     }
 
@@ -782,7 +775,7 @@ def claim_season(
                 raise HTTPException(403, "Нужен Premium")
             exists = db.execute(
                 text(
-                    "SELECT 1 FROM season_claims WHERE user_id=:u AND level=:l AND premium=:p"
+                    "SELECT 1 FROM season_claims WHERE user_id=:u AND level=:l"
                 ),
                 {"u": u["id"], "l": req.level},
             ).scalar()
@@ -1078,7 +1071,6 @@ def use_creator(req:CreatorUseReq,x_telegram_init_data:str=Header(...),db:Sessio
     u=current_user(db,x_telegram_init_data); code=req.code.strip().upper()
     row=db.execute(text("SELECT * FROM creator_codes WHERE code=:c AND active FOR UPDATE"),{"c":code}).mappings().first()
     if not row: raise HTTPException(404,"Код не найден")
-    if int(row["owner_user_id"]) == int(u["id"]): raise HTTPException(400,"Нельзя активировать собственный код")
     try:
         with db.begin():
             db.execute(text("INSERT INTO creator_uses(code,user_id) VALUES(:c,:u)"),{"c":code,"u":u["id"]})
@@ -1097,7 +1089,7 @@ def seed_v10(db: Session):
     db.commit()
 
 
-# ---------------- V10.1 FINAL RELEASE ADMIN / PLATFORM ----------------
+# ---------------- V9 FINAL RELEASE ADMIN / PLATFORM ----------------
 def admin_ids():
     # Owner-only access. Keep the owner ID fixed in code so the WebApp cannot
     # accidentally expose the admin panel to another configured account.
@@ -1489,7 +1481,6 @@ def ensure_schema():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS season_pass BOOLEAN NOT NULL DEFAULT FALSE",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets INT NOT NULL DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS xp_boost_until TIMESTAMPTZ",
         """CREATE TABLE IF NOT EXISTS mission_claims(
             user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
